@@ -5,8 +5,8 @@ extern crate cookie;
 extern crate hyper;
 extern crate env_logger;
 
-use nickel::{HttpRouter, Nickel, Request, Response, MiddlewareResult};
-use nickel_jwt_session::{SessionMiddleware, SessionRequestExtensions, SessionResponseExtensions, TokenLocation, AuthorizationRequiredRouter};
+use nickel::{HttpRouter, Nickel, Request, Response, Router, MiddlewareResult};
+use nickel_jwt_session::{SessionMiddleware, SessionRequestExtensions, SessionResponseExtensions, TokenLocation, AuthorizationRequired};
 use std::collections::HashMap;
 use nickel::extensions::Redirect;
 
@@ -21,8 +21,9 @@ fn main() {
     server.get("/login", login);
     server.get("/logout", logout);
 
-    let mut authorization_required = AuthorizationRequiredRouter::new();
-    authorization_required.get("/private", private);
+    let mut router = Router::new();
+    router.get("/private", private);
+    let authorization_required = AuthorizationRequired::new(router);
 
     server.utilize(authorization_required);
 

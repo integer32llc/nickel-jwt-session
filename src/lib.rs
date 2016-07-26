@@ -294,30 +294,30 @@ impl<'a, 'b, D> SessionResponseExtensions for Response<'a, D> {
     }
 }
 
-pub struct AuthorizationRequiredRouter<D=()> {
-    router: Router<D>,
+pub struct AuthorizationRequired<M> {
+    next: M,
 }
 
-impl<D> AuthorizationRequiredRouter<D> {
-    pub fn new() -> AuthorizationRequiredRouter<D> {
-        AuthorizationRequiredRouter {
-            router: Router::new(),
+impl<M> AuthorizationRequired<M> {
+    pub fn new(middleware: M) -> AuthorizationRequired<M> {
+        AuthorizationRequired {
+            next: middleware,
         }
     }
 }
 
-impl<D: 'static> Middleware<D> for AuthorizationRequiredRouter<D> {
-    fn invoke<'mw, 'conn>(&self,
+impl<D, M: Middleware<D>> Middleware<D> for AuthorizationRequired<M> {
+    fn invoke<'mw, 'conn>(&'mw self,
                           req: &mut Request<'mw, 'conn, D>,
                           res: Response<'mw, D>)
                           -> MiddlewareResult<'mw, D> {
         match req.authorized_user() {
             Some(user) => {
-                info!("User {:?} is authorized for {} on {} through the AuthorizationRequiredRouter",
+                info!("User {:?} is authorized for {} on {} through the AuthorizationRequired",
                       user,
                       req.origin.remote_addr,
                       req.origin.uri);
-                Ok(Continue(res))
+                self.next.invoke(req, res)
             }
             None => {
                 info!("Authorization is required for {} on {}, no user found",
@@ -326,13 +326,6 @@ impl<D: 'static> Middleware<D> for AuthorizationRequiredRouter<D> {
                 Err(NickelError::new(res, "Permission denied", StatusCode::Forbidden))
             }
         }
-    }
-}
-
-impl<D: Sync + Send + 'static> HttpRouter<D> for AuthorizationRequiredRouter<D> {
-    fn add_route<M: Into<Matcher>, H: Middleware<D>>(&mut self, method: Method, matcher: M, handler: H) -> &mut Self {
-        self.router.add_route(method, matcher, handler);
-        self
     }
 }
 
