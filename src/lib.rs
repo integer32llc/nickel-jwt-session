@@ -29,8 +29,11 @@ use cookie::Cookie as CookiePair;
 use crypto::sha2::Sha256;
 use hyper::header::{Authorization, Bearer, SetCookie};
 use hyper::header;
+use hyper::method::Method;
 use jwt::{Header, Registered, Token};
-use nickel::{Continue, Middleware, MiddlewareResult, Request, Response};
+use nickel::{Continue, Middleware, MiddlewareResult, Request, Response, NickelError};
+use nickel::status::StatusCode;
+use nickel::router::{HttpRouter, Matcher, Router};
 use plugin::Extensible;
 use std::default::Default;
 use typemap::Key;
@@ -288,6 +291,48 @@ impl<'a, 'b, D> SessionResponseExtensions for Response<'a, D> {
             }
             None => {}
         }
+    }
+}
+
+pub struct AuthorizationRequiredRouter<D=()> {
+    router: Router<D>,
+}
+
+impl<D> AuthorizationRequiredRouter<D> {
+    pub fn new() -> AuthorizationRequiredRouter<D> {
+        AuthorizationRequiredRouter {
+            router: Router::new(),
+        }
+    }
+}
+
+impl<D: 'static> Middleware<D> for AuthorizationRequiredRouter<D> {
+    fn invoke<'mw, 'conn>(&self,
+                          req: &mut Request<'mw, 'conn, D>,
+                          res: Response<'mw, D>)
+                          -> MiddlewareResult<'mw, D> {
+        match req.authorized_user() {
+            Some(user) => {
+                info!("User {:?} is authorized for {} on {}",
+                      user,
+                      req.origin.remote_addr,
+                      req.origin.uri);
+                Ok(Continue(res))
+            }
+            None => {
+                info!("Authorization is required for {} on {}, no user found",
+                      req.origin.remote_addr,
+                      req.origin.uri);
+                Err(NickelError::new(res, "Permission denied", StatusCode::Forbidden))
+            }
+        }
+    }
+}
+
+impl<D: Sync + Send + 'static> HttpRouter<D> for AuthorizationRequiredRouter<D> {
+    fn add_route<M: Into<Matcher>, H: Middleware<D>>(&mut self, method: Method, matcher: M, handler: H) -> &mut Self {
+        self.router.add_route(method, matcher, handler);
+        self
     }
 }
 
