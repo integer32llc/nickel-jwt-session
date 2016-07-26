@@ -313,7 +313,7 @@ impl<D: 'static> Middleware<D> for AuthorizationRequiredRouter<D> {
                           -> MiddlewareResult<'mw, D> {
         match req.authorized_user() {
             Some(user) => {
-                info!("User {:?} is authorized for {} on {}",
+                info!("User {:?} is authorized for {} on {} through the AuthorizationRequiredRouter",
                       user,
                       req.origin.remote_addr,
                       req.origin.uri);
